@@ -41,9 +41,11 @@ export async function saveSubscription(
             q.Replace(
                 q.Select(
                     "ref",
-                    q.Match(
-                        q.Index("subscription_by_id"),
-                        subscription.id
+                    q.Get(
+                        q.Match(
+                            q.Index("subscription_by_id"),
+                            subscription.id
+                        )
                     )
                 ),
                 { data: subscriptionData }
