@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Providers from "next-auth/providers";
 import { query as q } from "faunadb";
 import { fauna } from '../../../services/fauna';
+import { session } from "next-auth/client";
 
 export default NextAuth({
   providers: [
@@ -13,10 +14,45 @@ export default NextAuth({
   ],
 
   callbacks: {
+
+    async session(session) {
+      try {
+        const userActiveSubscription = await fauna.query(
+          q.Get(
+            q.Intersection([
+              q.Match(
+                q.Index('subscription_by_user_ref'),
+                q.Select(
+                  "ref",
+                  q.Get(
+                    q.Match(
+                      q.Index('user_by_email'),
+                      q.Casefold(session.user.email)
+                    )
+                  )
+                )
+              ),
+              q.Match(
+                q.Index('subscription_by_status'),
+                'active'
+              )
+            ])
+          )
+        )
+        return {
+          ...session,
+          activeSubscription: userActiveSubscription
+        }
+      }
+      catch (error) {
+        return { ...session, activeSubscription: null }
+      }
+    },
+
     async signIn(user, account, profile) {
 
       try {
-        const { name, email} = user;
+        const { name, email } = user;
 
         await fauna.query(
           q.If(
@@ -30,7 +66,7 @@ export default NextAuth({
             ),
             q.Create(
               q.Collection('users'),
-              { data: {name, email } }
+              { data: { name, email } }
             ),
             q.Get(
               q.Match(
@@ -51,9 +87,7 @@ export default NextAuth({
     async redirect(url, baseUrl) {
       return baseUrl
     },
-    async session(session, user) {
-      return session
-    },
+
     async jwt(token, user, account, profile, isNewUser) {
       return token
     }
